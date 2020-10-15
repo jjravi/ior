@@ -20,6 +20,8 @@
 #include <math.h>
 #include <mpi.h>
 #include <string.h>
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
 #if defined(HAVE_STRINGS_H)
 #include <strings.h>
@@ -143,6 +145,10 @@ int ior_main(int argc, char **argv)
 
     out_logfile = stdout;
     out_resultfile = stdout;
+
+    // int *test_buf;
+    // cudaMalloc((void **)&test_buf, 10);
+    // sleep(10);
 
     /*
      * check -h option from commandline without starting MPI;
@@ -677,6 +683,12 @@ FillBuffer(void *buffer,
         }
 }
 
+static void
+SendBuffer(void *buffer, void *d_buffer, IOR_param_t * test)
+{
+  cudaMemcpy (d_buffer, buffer, test->transferSize, cudaMemcpyHostToDevice );
+}
+
 /*
  * Return string describing machine name and type.
  */
@@ -1038,6 +1050,7 @@ static void XferBuffersSetup(IOR_io_buffers* ioBuffers, IOR_param_t* test,
                              int pretendRank)
 {
         ioBuffers->buffer = aligned_buffer_alloc(test->transferSize);
+        cudaMalloc((void **)&ioBuffers->d_buffer, test->transferSize);
 }
 
 /*
@@ -1047,6 +1060,7 @@ static void XferBuffersFree(IOR_io_buffers* ioBuffers, IOR_param_t* test)
 
 {
         aligned_buffer_free(ioBuffers->buffer);
+        cudaFree(ioBuffers->d_buffer);
 }
 
 
@@ -1246,6 +1260,9 @@ static void TestIoSys(IOR_test_t *test)
         void *hog_buf;
         IOR_io_buffers ioBuffers;
 
+        cudaSetDevice(rank);
+        printf("cuda initialized: %d\n", rank);
+
         /* set up communicator for test */
         MPI_CHECK(MPI_Comm_group(mpi_comm_world, &orig_group),
                   "MPI_Comm_group() error");
@@ -1321,6 +1338,7 @@ static void TestIoSys(IOR_test_t *test)
                            testComm), "cannot broadcast start time value");
 
                 FillBuffer(ioBuffers.buffer, params, 0, pretendRank);
+                SendBuffer(ioBuffers.buffer, ioBuffers.d_buffer, params);
                 /* use repetition count for number of multiple files */
                 if (params->multiFile)
                         params->repCounter = rep;
@@ -1607,6 +1625,7 @@ static void ValidateTests(IOR_param_t * test)
         if (((strcasecmp(test->api, "POSIX") != 0)
             && (strcasecmp(test->api, "MPIIO") != 0)
             && (strcasecmp(test->api, "MMAP") != 0)
+            && (strcasecmp(test->api, "HDF5") != 0)
             && (strcasecmp(test->api, "HDFS") != 0)
             && (strcasecmp(test->api, "DFS") != 0)
             && (strcasecmp(test->api, "DAOS") != 0)
@@ -1777,6 +1796,7 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
   IOR_offset_t transfer;
 
   void *buffer = ioBuffers->buffer;
+  void *d_buffer = ioBuffers->d_buffer;
 
   IOR_offset_t offset = offsetArray[pairCnt]; // this looks inappropriate
 
@@ -1786,8 +1806,14 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
            * containing the offset into the file */
           if (test->storeFileOffset == TRUE) {
                   FillBuffer(buffer, test, offset, pretendRank);
+                  SendBuffer(buffer, d_buffer, test);
           }
-          amtXferred = backend->xfer(access, fd, buffer, transfer, offset, test->backend_options);
+#ifdef ENABLE_GDS_VFD
+          // gpu pointer
+          amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
+#else
+          amtXferred = backend->xfer(access, fd, buffer, d_buffer, transfer, offset, test->backend_options);
+#endif
           if (amtXferred != transfer)
                   ERR("cannot write to file");
           if (test->fsyncPerWrite)
@@ -1797,7 +1823,12 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
             nanosleep( & wait, NULL);
           }
   } else if (access == READ) {
-          amtXferred = backend->xfer(access, fd, buffer, transfer, offset, test->backend_options);
+#ifdef ENABLE_GDS_VFD
+          // gpu pointer
+          amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
+#else
+          amtXferred = backend->xfer(access, fd, buffer, d_buffer, transfer, offset, test->backend_options);
+#endif
           if (amtXferred != transfer)
                   ERR("cannot read from file");
           if (test->interIODelay > 0){
@@ -1806,14 +1837,24 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
           }
   } else if (access == WRITECHECK) {
           ((long long int*) buffer)[0] = ~((long long int*) buffer)[0]; // changes the buffer, no memset to reduce the memory pressure
-          amtXferred = backend->xfer(access, fd, buffer, transfer, offset, test->backend_options);
+#ifdef ENABLE_GDS_VFD
+          // gpu pointer
+          amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
+#else
+          amtXferred = backend->xfer(access, fd, buffer, d_buffer, transfer, offset, test->backend_options);
+#endif
           if (amtXferred != transfer)
                   ERR("cannot read from file write check");
           (*transferCount)++;
           *errors += CompareData(buffer, transfer, *transferCount, test, offset, pretendRank, WRITECHECK);
   } else if (access == READCHECK) {
           ((long long int*) buffer)[0] = ~((long long int*) buffer)[0]; // changes the buffer, no memset to reduce the memory pressure
-          amtXferred = backend->xfer(access, fd, buffer, transfer, offset, test->backend_options);
+#ifdef ENABLE_GDS_VFD
+          // gpu pointer
+          amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
+#else
+          amtXferred = backend->xfer(access, fd, buffer, d_buffer, transfer, offset, test->backend_options);
+#endif
           if (amtXferred != transfer){
             ERR("cannot read from file");
           }

@@ -41,6 +41,10 @@ extraSOURCES  += aiori-HDF5.c
 extraLDADD    += -lhdf5 -lz
 endif
 
+if USE_CUDA_AIORI
+extraLDADD    += -L/usr/local/cuda/lib64 -lcuda -lcudart
+endif
+
 if USE_IME_AIORI
 extraSOURCES  += aiori-IME.c
 extraCPPFLAGS += -I/opt/ddn/ime/include

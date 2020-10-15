@@ -116,6 +116,42 @@ AM_COND_IF([USE_IME_AIORI],[
         AC_DEFINE([USE_IME_AIORI], [], [Build IME backend AIORI])
 ])
 
+####################### CUDA #######################
+AC_SUBST([ENABLE_CUDA])
+AC_SUBST([GDS_VFD])
+
+## Default is not present
+ENABLE_CUDA=no
+GDS_VFD=no
+
+m4_include([cuda.ac])
+
+if test -n "$CUDA_DIR"; then
+  CPPFLAGS="${CPPFLAGS} -I$CUDA_DIR/include"
+fi
+
+if test -n "$CUDA_LIBS"; then
+  LDFLAGS="$LDFLAGS -L$CUDA_DIR/lib64 $CUDA_LIBS"
+fi
+
+if test -n "$CUFILE_DIR"; then
+
+  if test x$ENABLE_CUDA = xyes; then
+    GDS_VFD=yes
+
+    AM_CONDITIONAL([USE_CUDA_AIORI], [test x$ENABLE_CUDA = xyes])
+    AM_COND_IF([USE_CUDA_AIORI],[
+                AC_DEFINE([USE_CUDA_AIORI], [], [Define if support for gds (cufile) is enabled])])
+  else
+    GDS_VFD=no
+    AC_MSG_ERROR([GDS VFD was requested but missing cuda path, verify --with-cuda=])
+  fi
+
+  CPPFLAGS="${CPPFLAGS} -I$CUFILE_DIR/lib"
+  LDFLAGS="$LDFLAGS -L$CUFILE_DIR/lib -lcufile"
+fi
+##################### END CUDA #####################
+
 # HDF5 support
 AC_ARG_WITH([hdf5],
         [AS_HELP_STRING([--with-hdf5],
@@ -128,8 +164,6 @@ AM_COND_IF([USE_HDF5_AIORI],[
 	AC_SEARCH_LIBS([H5Pset_all_coll_metadata_ops], [hdf5])
 	AC_CHECK_FUNCS([H5Pset_all_coll_metadata_ops])
 ])
-
-
 
 # HDFS support
 AC_ARG_WITH([hdfs],

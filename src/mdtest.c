@@ -414,13 +414,13 @@ static void create_file (const char *path, uint64_t itemNum) {
         }else{
           write_buffer[0] = (char) itemNum;
         }
-        if ( write_bytes != (size_t) backend->xfer(WRITE, aiori_fh, (IOR_size_t *) write_buffer, write_bytes, 0, backend_options)) {
+        if ( write_bytes != (size_t) backend->xfer(WRITE, aiori_fh, (IOR_size_t *) write_buffer, NULL, write_bytes, 0, backend_options)) {
             FAIL("unable to write file %s", curr_item);
         }
 
         if (verify_write) {
             write_buffer[0] = 42;
-            if (write_bytes != (size_t) backend->xfer(READ, aiori_fh, (IOR_size_t *) write_buffer, write_bytes, 0, backend_options)) {
+            if (write_bytes != (size_t) backend->xfer(READ, aiori_fh, (IOR_size_t *) write_buffer, NULL, write_bytes, 0, backend_options)) {
                 FAIL("unable to verify write (read/back) file %s", curr_item);
             }
             mdtest_verify_data(itemNum, write_buffer, write_bytes);
@@ -737,7 +737,7 @@ void mdtest_read(int random, int dirs, const long dir_iter, char *path) {
         /* read file */
         if (read_bytes > 0) {
             read_buffer[0] = 42;
-            if (read_bytes != (size_t) backend->xfer(READ, aiori_fh, (IOR_size_t *) read_buffer, read_bytes, 0, backend_options)) {
+            if (read_bytes != (size_t) backend->xfer(READ, aiori_fh, (IOR_size_t *) read_buffer, NULL, read_bytes, 0, backend_options)) {
                 FAIL("unable to read file %s", item);
             }
             if(verify_read){

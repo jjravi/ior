@@ -66,6 +66,7 @@ enum PACKET_TYPE
 
 typedef struct IO_BUFFERS
 {
+    void* d_buffer;
     void* buffer;
     void* checkBuffer;
     void* readCheckBuffer;

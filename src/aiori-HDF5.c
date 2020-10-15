@@ -24,6 +24,8 @@
 #define H5_USE_16_API
 #include <hdf5.h>
 #include <mpi.h>
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
 #include "aiori.h"              /* abstract IOR interface */
 #include "utilities.h"
@@ -85,7 +87,7 @@ static IOR_offset_t SeekOffset(void *, IOR_offset_t, aiori_mod_opt_t *);
 static void SetupDataSet(void *, int flags, aiori_mod_opt_t *);
 static aiori_fd_t *HDF5_Create(char *, int flags, aiori_mod_opt_t *);
 static aiori_fd_t *HDF5_Open(char *, int flags, aiori_mod_opt_t *);
-static IOR_offset_t HDF5_Xfer(int, aiori_fd_t *, IOR_size_t *,
+static IOR_offset_t HDF5_Xfer(int, aiori_fd_t *, IOR_size_t *, IOR_size_t *,
                            IOR_offset_t, IOR_offset_t, aiori_mod_opt_t *);
 static void HDF5_Close(aiori_fd_t *, aiori_mod_opt_t *);
 static void HDF5_Delete(char *, aiori_mod_opt_t *);
@@ -286,8 +288,19 @@ static aiori_fd_t *HDF5_Open(char *testFileName, int flags, aiori_mod_opt_t * pa
                 ShowHints(&mpiHints);
                 fprintf(stdout, "}\n");
         }
-        HDF5_CHECK(H5Pset_fapl_mpio(accessPropList, comm, mpiHints),
+        // HDF5_CHECK(H5Pset_fapl_mpio(accessPropList, comm, mpiHints),
+                   // "cannot set file access property list");
+
+#ifdef ENABLE_GDS_VFD
+        int num_io_threads = 4;
+        size_t io_block_size = 16*1024*1024;
+
+        // TODO: turn on GDS VFD
+        H5Pinsert2(accessPropList, "H5_GDS_VFD_IO_THREADS", sizeof(int), &num_io_threads, NULL,  NULL, NULL, NULL, NULL, NULL);
+        H5Pinsert2(accessPropList, "H5_GDS_VFD_IO_BLOCK_SIZE", sizeof(size_t), &io_block_size, NULL,  NULL, NULL, NULL, NULL, NULL);
+        HDF5_CHECK(H5Pset_fapl_gds(accessPropList, 4096, 4096, 16*1024*1024),
                    "cannot set file access property list");
+#endif
 
         /* set alignment */
         HDF5_CHECK(H5Pset_alignment(accessPropList, o->setAlignment, o->setAlignment),
@@ -368,12 +381,12 @@ static aiori_fd_t *HDF5_Open(char *testFileName, int flags, aiori_mod_opt_t * pa
 
         /* set data transfer mode */
         if (hints->collective) {
-                HDF5_CHECK(H5Pset_dxpl_mpio(xferPropList, H5FD_MPIO_COLLECTIVE),
-                           "cannot set collective data transfer mode");
+                // HDF5_CHECK(H5Pset_dxpl_mpio(xferPropList, H5FD_MPIO_COLLECTIVE),
+                           // "cannot set collective data transfer mode");
         } else {
-                HDF5_CHECK(H5Pset_dxpl_mpio
-                           (xferPropList, H5FD_MPIO_INDEPENDENT),
-                           "cannot set independent data transfer mode");
+                // HDF5_CHECK(H5Pset_dxpl_mpio
+                           // (xferPropList, H5FD_MPIO_INDEPENDENT),
+                           // "cannot set independent data transfer mode");
         }
 
         /* set up memory data space for transfer */
@@ -418,11 +431,27 @@ static aiori_fd_t *HDF5_Open(char *testFileName, int flags, aiori_mod_opt_t * pa
 /*
  * Write or read access to file using the HDF5 interface.
  */
-static IOR_offset_t HDF5_Xfer(int access, aiori_fd_t *fd, IOR_size_t * buffer,
+static IOR_offset_t HDF5_Xfer(int access, aiori_fd_t *fd, IOR_size_t * buffer, IOR_size_t * d_buffer,
                               IOR_offset_t length, IOR_offset_t offset, aiori_mod_opt_t * param)
 {
         static int firstReadCheck = FALSE, startNewDataSet;
         IOR_offset_t segmentPosition, segmentSize;
+
+        if(access == READ) {
+                if(d_buffer != NULL) {
+                        if( cudaMemcpy (d_buffer, buffer, length, cudaMemcpyHostToDevice ) != CUDA_SUCCESS) {
+                                fprintf(stderr, "cuda read transfer failed\n");
+                        }
+                }
+        }
+        else if(access == WRITE) {
+                if(d_buffer != NULL) {
+                        if( cudaMemcpy (buffer, d_buffer, length, cudaMemcpyDeviceToHost) != CUDA_SUCCESS) {
+
+                                fprintf(stderr, "cuda write transfer failed\n");
+                        }
+                }
+        }
 
         /*
          * this toggle is for the read check operation, which passes through
@@ -499,6 +528,7 @@ static IOR_offset_t HDF5_Xfer(int access, aiori_fd_t *fd, IOR_size_t * buffer,
  */
 static void HDF5_Fsync(aiori_fd_t *fd, aiori_mod_opt_t * param)
 {
+        HDF5_CHECK(H5Fflush(*(hid_t *)fd, H5F_SCOPE_LOCAL), "cannot flush h5 file");
 }
 
 /*

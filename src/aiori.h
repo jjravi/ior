@@ -22,6 +22,8 @@
 #include "aiori-debug.h"
 #include "option.h"
 
+#define ENABLE_GDS_VFD
+
 /*************************** D E F I N I T I O N S ****************************/
 
 /* -- file open flags -- */
@@ -94,7 +96,7 @@ typedef struct ior_aiori {
          Allow to set generic transfer options that shall be applied to any subsequent IO call.
         */
         void (*xfer_hints)(aiori_xfer_hint_t * params);
-        IOR_offset_t (*xfer)(int access, aiori_fd_t *, IOR_size_t *,
+        IOR_offset_t (*xfer)(int access, aiori_fd_t *, IOR_size_t *, IOR_size_t *,
                              IOR_offset_t size, IOR_offset_t offset, aiori_mod_opt_t * module_options);
         void (*close)(aiori_fd_t *, aiori_mod_opt_t * module_options);
         void (*delete)(char *, aiori_mod_opt_t * module_options);
