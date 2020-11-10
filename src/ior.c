@@ -1808,7 +1808,7 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
                   FillBuffer(buffer, test, offset, pretendRank);
                   SendBuffer(buffer, d_buffer, test);
           }
-#ifdef ENABLE_GDS_VFD
+#ifdef IOR_GDS_SUPPORT
           // gpu pointer
           amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
 #else
@@ -1823,7 +1823,7 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
             nanosleep( & wait, NULL);
           }
   } else if (access == READ) {
-#ifdef ENABLE_GDS_VFD
+#ifdef IOR_GDS_SUPPORT
           // gpu pointer
           amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
 #else
@@ -1837,7 +1837,7 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
           }
   } else if (access == WRITECHECK) {
           ((long long int*) buffer)[0] = ~((long long int*) buffer)[0]; // changes the buffer, no memset to reduce the memory pressure
-#ifdef ENABLE_GDS_VFD
+#ifdef IOR_GDS_SUPPORT
           // gpu pointer
           amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
 #else
@@ -1849,7 +1849,7 @@ static IOR_offset_t WriteOrReadSingle(IOR_offset_t pairCnt, IOR_offset_t *offset
           *errors += CompareData(buffer, transfer, *transferCount, test, offset, pretendRank, WRITECHECK);
   } else if (access == READCHECK) {
           ((long long int*) buffer)[0] = ~((long long int*) buffer)[0]; // changes the buffer, no memset to reduce the memory pressure
-#ifdef ENABLE_GDS_VFD
+#ifdef IOR_GDS_SUPPORT
           // gpu pointer
           amtXferred = backend->xfer(access, fd, d_buffer, NULL, transfer, offset, test->backend_options);
 #else

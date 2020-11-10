@@ -291,7 +291,7 @@ static aiori_fd_t *HDF5_Open(char *testFileName, int flags, aiori_mod_opt_t * pa
         // HDF5_CHECK(H5Pset_fapl_mpio(accessPropList, comm, mpiHints),
                    // "cannot set file access property list");
 
-#ifdef ENABLE_GDS_VFD
+#ifdef IOR_GDS_SUPPORT
         int num_io_threads = 4;
         size_t io_block_size = 16*1024*1024;
 

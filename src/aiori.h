@@ -22,7 +22,7 @@
 #include "aiori-debug.h"
 #include "option.h"
 
-#define ENABLE_GDS_VFD
+#define IOR_GDS_SUPPORT
 
 /*************************** D E F I N I T I O N S ****************************/
 

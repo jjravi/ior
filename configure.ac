@@ -118,11 +118,11 @@ AM_COND_IF([USE_IME_AIORI],[
 
 ####################### CUDA #######################
 AC_SUBST([ENABLE_CUDA])
-AC_SUBST([GDS_VFD])
+AC_SUBST([IOR_GDS_SUPPORT])
 
 ## Default is not present
 ENABLE_CUDA=no
-GDS_VFD=no
+IOR_GDS_SUPPORT=no
 
 m4_include([cuda.ac])
 
@@ -137,13 +137,13 @@ fi
 if test -n "$CUFILE_DIR"; then
 
   if test x$ENABLE_CUDA = xyes; then
-    GDS_VFD=yes
+    IOR_GDS_SUPPORT=yes
 
     AM_CONDITIONAL([USE_CUDA_AIORI], [test x$ENABLE_CUDA = xyes])
     AM_COND_IF([USE_CUDA_AIORI],[
                 AC_DEFINE([USE_CUDA_AIORI], [], [Define if support for gds (cufile) is enabled])])
   else
-    GDS_VFD=no
+    IOR_GDS_SUPPORT=no
     AC_MSG_ERROR([GDS VFD was requested but missing cuda path, verify --with-cuda=])
   fi
 
